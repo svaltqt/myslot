@@ -828,12 +828,14 @@ RegEvent("ADDON_LOADED", function()
     local config = MyslotSettings.minimap
 
     icon:Register("Myslot", ldb:NewDataObject("Myslot", {
-            icon = "Interface\\MacroFrame\\MacroFrame-Icon",
-            OnClick = function()
-                if f:IsShown() then
-                    f:Hide()
-                else
-                    f:Show()
+            icon = "Interface\\AddOns\\" .. _ .. "\\Myslot",
+            OnClick = function(_, button)
+                if button == "LeftButton" then
+                    if f:IsShown() then
+                        f:Hide()
+                    else
+                        f:Show()
+                    end
                 end
             end,
             OnTooltipShow = function(tooltip)
