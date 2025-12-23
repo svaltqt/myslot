@@ -11,6 +11,8 @@ local tAppendAll = _G.tAppendAll or function (target, source)
     end
 end
 
+local RefreshMenu = UIDropDownMenu_RefreshAll or UIDropDownMenu_Refresh
+
 
 local f = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
 f:SetWidth(650)
@@ -30,7 +32,10 @@ f:SetToplevel(true)
 f:EnableMouse(true)
 f:SetMovable(true)
 f:RegisterForDrag("LeftButton")
-f:SetScript("OnDragStart", f.StartMoving)
+f:SetScript("OnDragStart", function(self)
+    CloseDropDownMenus()
+    self:StartMoving()
+end)
 f:SetScript("OnDragStop", f.StopMovingOrSizing)
 f:SetScript("OnKeyDown", function (_, key)
     if key == "ESCAPE" then
@@ -104,18 +109,18 @@ local function CreateSettingMenu(opt)
         end
     end
 
-    local childchecked = function (self)
-        return tableref(self.arg1)[self.arg2]
+    local function childchecked(arg1, arg2)
+        return tableref(arg1)[arg2]
     end
 
-    local childclicked = function (self)
-        local t = tableref(self.arg1)
-        t[self.arg2] = not t[self.arg2]
-        UIDropDownMenu_RefreshAll(menuFrame)
+    local function childclicked(arg1, arg2)
+        local t = tableref(arg1)
+        t[arg2] = not t[arg2]
+        RefreshMenu(menuFrame)
     end
 
-    local parentchecked = function (self)
-        local t = tableref(self.arg1)
+    local function parentchecked(arg1)
+        local t = tableref(arg1)
         for _, v in pairs(t) do
             if v then
                 return true
@@ -125,15 +130,15 @@ local function CreateSettingMenu(opt)
         return false
     end
 
-    local parentclicked  = function (self)
-        local checkedany = parentchecked(self)
-        local t = tableref(self.arg1)
+    local function parentclicked(arg1)
+        local checkedany = parentchecked(arg1)
+        local t = tableref(arg1)
 
         for i in pairs(t) do
             t[i] = not checkedany
         end
 
-        UIDropDownMenu_RefreshAll(menuFrame)
+        RefreshMenu(menuFrame)
     end
 
     opt.ignoreActionBars = opt.ignoreActionBars or {
@@ -170,10 +175,9 @@ local function CreateSettingMenu(opt)
             text = L["Main Action Bar Page"] .. " 1",
             isNotRadio = true,
             keepShownOnClick = true,
-            arg1 = "action",
             arg2 = 1,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", 1) end,
+            func = function() childclicked("action", 1) end,
         },
         {
             text = L["Main Action Bar Page"] .. " 2",
@@ -181,8 +185,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = 2,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", 2) end,
+            func = function() childclicked("action", 2) end,
         },
         {
             text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(2), -- MultiBarBottomLeft
@@ -190,8 +194,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = BOTTOMLEFT_ACTIONBAR_PAGE,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", BOTTOMLEFT_ACTIONBAR_PAGE) end,
+            func = function() childclicked("action", BOTTOMLEFT_ACTIONBAR_PAGE) end,
         },
         {
             text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(3), -- MultiBarBottomRight
@@ -199,8 +203,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = BOTTOMRIGHT_ACTIONBAR_PAGE,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", BOTTOMRIGHT_ACTIONBAR_PAGE) end,
+            func = function() childclicked("action", BOTTOMRIGHT_ACTIONBAR_PAGE) end,
         },
         {
             text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(4), -- MultiBarRight
@@ -208,8 +212,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = RIGHT_ACTIONBAR_PAGE,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", RIGHT_ACTIONBAR_PAGE) end,
+            func = function() childclicked("action", RIGHT_ACTIONBAR_PAGE) end,
         },
         {
             text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(5), -- MultiBarLeft
@@ -217,8 +221,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = LEFT_ACTIONBAR_PAGE,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", LEFT_ACTIONBAR_PAGE) end,
+            func = function() childclicked("action", LEFT_ACTIONBAR_PAGE) end,
         },
     }
 
@@ -230,8 +234,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = MULTIBAR_5_ACTIONBAR_PAGE,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", MULTIBAR_5_ACTIONBAR_PAGE) end,
+            func = function() childclicked("action", MULTIBAR_5_ACTIONBAR_PAGE) end,
         })
     end
 
@@ -242,8 +246,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = MULTIBAR_6_ACTIONBAR_PAGE,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", MULTIBAR_6_ACTIONBAR_PAGE) end,
+            func = function() childclicked("action", MULTIBAR_6_ACTIONBAR_PAGE) end,
         })
     end
 
@@ -254,8 +258,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = MULTIBAR_7_ACTIONBAR_PAGE,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", MULTIBAR_7_ACTIONBAR_PAGE) end,
+            func = function() childclicked("action", MULTIBAR_7_ACTIONBAR_PAGE) end,
         })
     end
 
@@ -267,8 +271,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = 11,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", 11) end,
+            func = function() childclicked("action", 11) end,
         })        
     end
 
@@ -284,8 +288,8 @@ local function CreateSettingMenu(opt)
             keepShownOnClick = true,
             arg1 = "action",
             arg2 = 6 + i,
-            checked = childchecked,
-            func = childclicked,
+            checked = function() return childchecked("action", 6+i) end,
+            func = function() childclicked("action", 6+i) end,
         })
         -- end
     end
@@ -298,8 +302,8 @@ local function CreateSettingMenu(opt)
             isNotRadio = true,
             keepShownOnClick = true,
             menuList = actionbarlist,
-            func = parentclicked,
-            checked = parentchecked,
+            func = function() parentclicked("action") end,
+            checked = function() return parentchecked("action") end,
             arg1 = "action",
         }, -- 1
         {
@@ -320,8 +324,8 @@ local function CreateSettingMenu(opt)
             notCheckable = false,
             isNotRadio = true,
             keepShownOnClick = true,
-            func = parentclicked,
-            checked = parentchecked,
+            func = function() parentclicked("macro") end,
+            checked = function() return parentchecked("macro") end,
             arg1 = "macro",
             menuList = {
                 {
@@ -330,8 +334,8 @@ local function CreateSettingMenu(opt)
                     keepShownOnClick = true,
                     arg1 = "macro",
                     arg2 = "ACCOUNT",
-                    checked = childchecked,
-                    func = childclicked,
+                    checked = function() return childchecked("macro", "ACCOUNT") end,
+                    func = function() childclicked("macro", "ACCOUNT") end,
                 },
                 {
                     text = CHARACTER_SPECIFIC_MACROS:format(""),
@@ -339,8 +343,8 @@ local function CreateSettingMenu(opt)
                     keepShownOnClick = true,
                     arg1 = "macro",
                     arg2 = "CHARACTOR",
-                    checked = childchecked,
-                    func = childclicked,
+                    checked = function() return childchecked("macro", "CHARACTOR") end,
+                    func = function() childclicked("macro", "CHARACTOR") end,
                 },
             }
         }, -- 3
@@ -371,10 +375,7 @@ local function DrawMenu(root, menuData)
                 arg2 = m.arg2,
             })
             c:SetResponder(function(data, menuInputData, menu)
-                m.func({
-                    arg1 = m.arg1,
-                    arg2 = m.arg2,
-                })
+                m.func()
                 -- Your handler here...
                 return MenuResponse.Refresh;
             end)
