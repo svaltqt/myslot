@@ -7,6 +7,13 @@ Myslot can export your ActionBar Layout, Marcos and Key Bindings as a transfer-f
 which can be copy/paste into notepad, sent via email, etc.
 Any character, even different class, can use Myslot to import those settings from the 'Exported text'
 
+## 3.3.5a Support (Legacy)
+This fork of MySlot is maintained to support **World of Warcraft 3.3.5a (WotLK)** and other legacy game versions. 
+
+**Key fixes in this version:**
+- **UI Fix**: Restored the Interface Options menu which was missing in older game clients.
+- **Minimap Fix**: Resolved the "red square" icon bug and restored global compatibility for shared minimap libraries.
+
 ## Usage
 
 
