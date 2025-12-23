@@ -6,9 +6,17 @@ local RegEvent = MySlot.regevent
 local f = CreateFrame("Frame", nil, UIParent)
 f.name = L["Myslot"]
 
-local category = Settings.RegisterCanvasLayoutCategory(f, L["Myslot"])
-MySlot.settingcategory = category
-Settings.RegisterAddOnCategory(category)
+local category
+if Settings and Settings.RegisterCanvasLayoutCategory then
+    category = Settings.RegisterCanvasLayoutCategory(f, L["Myslot"])
+    MySlot.settingcategory = category
+    Settings.RegisterAddOnCategory(category)
+else
+    -- 3.3.5a / legacy
+    f.name = L["Myslot"]
+    InterfaceOptions_AddCategory(f)
+    MySlot.settingcategory = f
+end
 
 RegEvent("ADDON_LOADED", function()
     do
@@ -63,7 +71,7 @@ RegEvent("ADDON_LOADED", function()
     local doffset = -160
     do
         local t = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        t:SetText(RED_FONT_COLOR:WrapTextInColorCode(L["DANGEROUS"]))
+        t:SetText("|cffff0000" .. L["DANGEROUS"] .. "|r")
         t:SetPoint("TOPLEFT", f, 15, doffset)
     end
 

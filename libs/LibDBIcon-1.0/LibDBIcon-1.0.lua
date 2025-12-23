@@ -147,12 +147,16 @@ end
 
 local function onMouseDown(self)
 	self.isMouseDown = true
-	self.icon:UpdateCoord()
+	if self.icon and self.icon.UpdateCoord then
+		self.icon:UpdateCoord()
+	end
 end
 
 local function onMouseUp(self)
 	self.isMouseDown = false
-	self.icon:UpdateCoord()
+	if self.icon and self.icon.UpdateCoord then
+		self.icon:UpdateCoord()
+	end
 end
 
 do
@@ -176,7 +180,9 @@ do
 	function onDragStart(self)
 		self:LockHighlight()
 		self.isMouseDown = true
-		self.icon:UpdateCoord()
+		if self.icon and self.icon.UpdateCoord then
+			self.icon:UpdateCoord()
+		end
 		self:SetScript("OnUpdate", onUpdate)
 		isDraggingButton = true
 		lib.tooltip:Hide()
@@ -218,21 +224,25 @@ local function createButton(name, object, db)
 	button.dataObject = object
 	button.db = db
 	button:SetFrameStrata("MEDIUM")
-	button:SetSize(31, 31)
+	button:SetWidth(31)
+	button:SetHeight(31)
 	button:SetFrameLevel(8)
 	button:RegisterForClicks("anyUp")
 	button:RegisterForDrag("LeftButton")
 	button:SetHighlightTexture(136477) --"Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight"
 	local overlay = button:CreateTexture(nil, "OVERLAY")
-	overlay:SetSize(53, 53)
+	overlay:SetWidth(53)
+	overlay:SetHeight(53)
 	overlay:SetTexture(136430) --"Interface\\Minimap\\MiniMap-TrackingBorder"
 	overlay:SetPoint("TOPLEFT")
 	local background = button:CreateTexture(nil, "BACKGROUND")
-	background:SetSize(20, 20)
+	background:SetWidth(20)
+	background:SetHeight(20)
 	background:SetTexture(136467) --"Interface\\Minimap\\UI-Minimap-Background"
 	background:SetPoint("TOPLEFT", 7, -5)
 	local icon = button:CreateTexture(nil, "ARTWORK")
-	icon:SetSize(17, 17)
+	icon:SetWidth(17)
+	icon:SetHeight(17)
 	icon:SetTexture(object.icon)
 	icon:SetPoint("TOPLEFT", 7, -6)
 	button.icon = icon
@@ -254,14 +264,18 @@ local function createButton(name, object, db)
 	button:SetScript("OnMouseDown", onMouseDown)
 	button:SetScript("OnMouseUp", onMouseUp)
 
-	button.fadeOut = button:CreateAnimationGroup()
-	local animOut = button.fadeOut:CreateAnimation("Alpha")
-	animOut:SetOrder(1)
-	animOut:SetDuration(0.2)
-	animOut:SetFromAlpha(1)
-	animOut:SetToAlpha(0)
-	animOut:SetStartDelay(1)
-	button.fadeOut:SetToFinalAlpha(true)
+	if button.CreateAnimationGroup then
+		button.fadeOut = button:CreateAnimationGroup()
+	end
+	if button.fadeOut and button.fadeOut.CreateAnimation then
+		local animOut = button.fadeOut:CreateAnimation("Alpha")
+		animOut:SetOrder(1)
+		animOut:SetDuration(0.2)
+		if animOut.SetFromAlpha then animOut:SetFromAlpha(1) end
+		if animOut.SetToAlpha then animOut:SetToAlpha(0) end
+		animOut:SetStartDelay(1)
+		if button.fadeOut.SetToFinalAlpha then button.fadeOut:SetToFinalAlpha(true) end
+	end
 
 	lib.objects[name] = button
 
@@ -456,15 +470,23 @@ for name, button in next, lib.objects do
 	button:SetScript("OnMouseDown", onMouseDown)
 	button:SetScript("OnMouseUp", onMouseUp)
 
+	if button.icon and not button.icon.UpdateCoord then
+		button.icon.UpdateCoord = updateCoord
+	end
+
 	if not button.fadeOut then -- Upgrade to 39
-		button.fadeOut = button:CreateAnimationGroup()
-		local animOut = button.fadeOut:CreateAnimation("Alpha")
-		animOut:SetOrder(1)
-		animOut:SetDuration(0.2)
-		animOut:SetFromAlpha(1)
-		animOut:SetToAlpha(0)
-		animOut:SetStartDelay(1)
-		button.fadeOut:SetToFinalAlpha(true)
+		if button.CreateAnimationGroup then
+			button.fadeOut = button:CreateAnimationGroup()
+		end
+		if button.fadeOut and button.fadeOut.CreateAnimation then
+			local animOut = button.fadeOut:CreateAnimation("Alpha")
+			animOut:SetOrder(1)
+			animOut:SetDuration(0.2)
+			if animOut.SetFromAlpha then animOut:SetFromAlpha(1) end
+			if animOut.SetToAlpha then animOut:SetToAlpha(0) end
+			animOut:SetStartDelay(1)
+			if button.fadeOut.SetToFinalAlpha then button.fadeOut:SetToFinalAlpha(true) end
+		end
 	end
 end
 lib:SetButtonRadius(lib.radius) -- Upgrade to 40

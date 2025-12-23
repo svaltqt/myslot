@@ -14,17 +14,60 @@ local MYSLOT_AUTHOR = "Boshi Lian <farmer1992@gmail.com>"
 local MYSLOT_VER = 42
 
 -- TWW Beta Compat code (fix and cleanup below later)
+-- TWW Beta Compat code (fix and cleanup below later)
 local PickupSpell = C_Spell and C_Spell.PickupSpell or _G.PickupSpell
 local PickupItem = C_Item and C_Item.PickupItem or _G.PickupItem
 local GetSpellInfo = C_Spell and C_Spell.GetSpellName or _G.GetSpellInfo
 local GetSpellLink = C_Spell and C_Spell.GetSpellLink or _G.GetSpellLink
-local PickupSpellBookItem = C_SpellBook and C_SpellBook.PickupSpellBookItem or _G.PickupSpellBookItem
 local GetAddOnMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) and C_AddOns.GetAddOnMetadata or _G.GetAddOnMetadata
+local GetNumMacros = _G.GetNumMacros
+local GetMacroInfo = _G.GetMacroInfo
+local GetNumMacroIcons = _G.GetNumMacroIcons
+local GetMacroIconInfo = _G.GetMacroIconInfo
+local CreateMacro = _G.CreateMacro
+local PickupMacro = _G.PickupMacro
+local GetBinding = _G.GetBinding
+local GetNumBindings = _G.GetNumBindings
+local GetSpellTabInfo = _G.GetSpellTabInfo
+local GetNumSpellTabs = _G.GetNumSpellTabs
+
+-- 3.3.5a Bitwise Fallback (only for macro logic)
+local bit_band = (bit and bit.band) or function(a, b)
+    if a == 0 or b == 0 then return 0 end
+    if a == b or a == 3 then return b end
+    if b == 3 then return a end
+    return 0
+end
+local bit_bor = (bit and bit.bor) or function(a, b)
+    if a == 0 then return b end
+    if b == 0 then return a end
+    if a == 3 or b == 3 or a ~= b then return 3 end
+    return a
+end
+
+-- 3.3.5a Shim for PickupSpellBookItem
+local function PickupSpellBookItem(index, bookType)
+    if C_SpellBook and C_SpellBook.PickupSpellBookItem then
+        C_SpellBook.PickupSpellBookItem(index, bookType == "spell" and Enum.SpellBookSpellBank.Player or Enum.SpellBookSpellBank.Pet)
+    elseif _G.PickupSpellBookItem then
+        _G.PickupSpellBookItem(index, bookType)
+    elseif _G.PickupSpell then
+        _G.PickupSpell(index, bookType)
+    end
+end
+
+-- 3.3.5a Compat
+local GetNumEquipmentSets = C_EquipmentSet and C_EquipmentSet.GetNumEquipmentSets or _G.GetNumEquipmentSets
+local GetEquipmentSetInfo = C_EquipmentSet and C_EquipmentSet.GetEquipmentSetInfo or _G.GetEquipmentSetInfo
+
+local MAX_ACCOUNT_MACROS = _G.MAX_ACCOUNT_MACROS or 36
+local MAX_CHARACTER_MACROS = _G.MAX_CHARACTER_MACROS or 18
+-- 3.3.5a Compat End
 -- TWW Beta Compat End
 
 -- local MYSLOT_IS_DEBUG = true
 local MYSLOT_LINE_SEP = IsWindowsClient() and "\r\n" or "\n"
-local MYSLOT_MAX_ACTIONBAR = 180
+local MYSLOT_MAX_ACTIONBAR = (GetNumSpellTabs or GetSpellTabInfo) and 120 or 180
 
 -- {{{ SLOT TYPE
 local MYSLOT_SPELL = _MySlot.Slot.SlotType.SPELL
@@ -120,13 +163,15 @@ local function CreateSpellOverrideMap()
                 end
             end
         end
+    end
 
+    if GetNumSpecGroups and MAX_TALENT_TIERS and NUM_TALENT_COLUMNS then
         local isInspect = false
         for specIndex = 1, GetNumSpecGroups(isInspect) do
             for tier = 1, MAX_TALENT_TIERS do
                 for column = 1, NUM_TALENT_COLUMNS do
                     local spellId = select(6, GetTalentInfo(tier, column, specIndex))
-                    if spellId then
+                    if spellId and C_Spell and C_Spell.GetOverrideSpell then
                         local newid = C_Spell.GetOverrideSpell(spellId)
                         if newid ~= spellId then
                             spellOverride[newid] = spellId
@@ -135,7 +180,9 @@ local function CreateSpellOverrideMap()
                 end
             end
         end
+    end
 
+    if C_SpecializationInfo and C_SpecializationInfo.GetPvpTalentSlotInfo and C_Spell and C_Spell.GetOverrideSpell then
         for pvpTalentSlot = 1, 3 do
             local slotInfo = C_SpecializationInfo.GetPvpTalentSlotInfo(pvpTalentSlot)
             if slotInfo ~= nil then
@@ -169,6 +216,9 @@ function MySlot:GetMacroInfo(macroId)
         return nil
     end
 
+    if type(iconTexture) == 'number' then
+        iconTexture = tostring(iconTexture)
+    end
     iconTexture = gsub(strupper(iconTexture or "INV_Misc_QuestionMark"), "INTERFACE\\ICONS\\", "")
 
     local msg = _MySlot.Macro()
@@ -187,10 +237,12 @@ function MySlot:GetActionInfo(slotId)
     local slotType, index, subType = GetActionInfo(slotId)
     if MySlot.SLOT_TYPE[slotType] == MYSLOT_EQUIPMENTSET then
         -- i starts from 0 https://github.com/tg123/myslot/issues/10 weird blz
-        for i = 0, C_EquipmentSet.GetNumEquipmentSets() do
-            if C_EquipmentSet.GetEquipmentSetInfo(i) == index then
-                index = i
-                break
+        if GetNumEquipmentSets then
+            for i = 0, GetNumEquipmentSets() do
+                if GetEquipmentSetInfo(i) == index then
+                    index = i
+                    break
+                end
             end
         end
     elseif not MySlot.SLOT_TYPE[slotType] then
@@ -212,6 +264,25 @@ function MySlot:GetActionInfo(slotId)
     if type(index) == 'string' then
         msg.strindex = index
         msg.index = 0
+    elseif slotType == "companion" then
+        if GetCompanionInfo then
+            local _, _, spellId = GetCompanionInfo(subType, index)
+            msg.index = spellId or index
+        else
+            msg.index = index
+        end
+        msg.strindex = subType -- MOUNT or CRITTER
+    elseif slotType == "spell" then
+        local spellId = 0
+        if _G.GetActionSpellID then
+            spellId = _G.GetActionSpellID(slotId)
+        end
+        if (not spellId or spellId == 0) and GetSpellLink then
+            local link = GetSpellLink(index, "spell")
+            -- Link format: |Hspell:49896|h... or |Hspell:49896:rank|h...
+            spellId = link and tonumber(string.match(link, "spell:(%d+)"))
+        end
+        msg.index = (spellId and spellId ~= 0) and spellId or index
     else
         msg.index = index
     end
@@ -230,8 +301,12 @@ function MySlot:GetPetActionInfo(slotId)
     if isToken then
         msg.strindex = name
         msg.index = 0
-    elseif spellID then
-        msg.index = spellID
+    elseif name then
+        -- 3.3.5a pet spells often don't have IDs in GetPetActionInfo
+        local link = GetSpellLink(name)
+        local spellId = link and tonumber(string.match(link, "spell:(%d+)"))
+        msg.strindex = name
+        msg.index = spellId or (type(spellID) == "number" and spellID) or 0
     elseif not name then
         msg.index = 0
         msg.type = MYSLOT_EMPTY
@@ -245,32 +320,40 @@ end
 -- {{{ GetBindingInfo
 -- {{{ Serialzie Key
 local function KeyToByte(key, command)
-    -- {mod , key , command high 8, command low 8}
-    if not key then
-        return nil
+    if not key then return nil end
+
+    local mods = {}
+    local finalKey = key
+    
+    -- Extract all modifiers (SHIFT-, CTRL-, ALT-, META-)
+    while true do
+        local mStart, mEnd, mod = string.find(finalKey, "^([^-]+)%-")
+        if mod then
+            table.insert(mods, mod:upper())
+            finalKey = string.sub(finalKey, mEnd + 1)
+        else
+            break
+        end
     end
 
-    local mod = nil
-    local _, _, _mod, _key = string.find(key, "(.+)-(.+)")
-    if _mod and _key then
-        mod, key = _mod, _key
-    end
+    table.sort(mods)
+    local modStr = table.concat(mods, "-")
+    if modStr == "" then modStr = "NONE" end
 
-    mod = mod or "NONE"
-
-    if not MySlot.MOD_KEYS[mod] then
-        MySlot:Print(L["[WARN] Ignore unsupported Key Binding [ %s ] , contact %s please"]:format(mod, MYSLOT_AUTHOR))
+    if not MySlot.MOD_KEYS[modStr] then
+        -- Try to reconstruct if sorted version missing, but protocol usually prefers sorted
+        MySlot:Print(L["[WARN] Ignore unsupported Key Binding [ %s ] , contact %s please"]:format(modStr, MYSLOT_AUTHOR))
         return nil
     end
 
     local msg = _MySlot.Key()
-    if MySlot.KEYS[key] then
-        msg.key = MySlot.KEYS[key]
+    if MySlot.KEYS[finalKey] then
+        msg.key = MySlot.KEYS[finalKey]
     else
         msg.key = MySlot.KEYS["KEYCODE"]
-        msg.keycode = key
+        msg.keycode = finalKey
     end
-    msg.mod = MySlot.MOD_KEYS[mod]
+    msg.mod = MySlot.MOD_KEYS[modStr]
 
     return msg
 end
@@ -278,7 +361,12 @@ end
 
 function MySlot:GetBindingInfo(index)
     -- might more than 1
-    local _command, _, key1, key2 = GetBinding(index)
+    local _command, key1, key2
+    if C_KeyBindings then
+        _command, _, key1, key2 = GetBinding(index)
+    else
+        _command, key1, key2 = GetBinding(index)
+    end
 
     if not _command then
         return
@@ -312,8 +400,11 @@ local function GetTalentTreeString()
     if GetTalentTabInfo then
 
         -- wlk
-        if tonumber(select(3, GetTalentTabInfo(1)), 10) then
-            return select(3, GetTalentTabInfo(1)) ..  "/" .. select(3, GetTalentTabInfo(2)) .. "/" .. select(3, GetTalentTabInfo(3))
+        if GetTalentTabInfo(1) and tonumber(select(3, GetTalentTabInfo(1)), 10) then
+            local t1 = select(3, GetTalentTabInfo(1)) or 0
+            local t2 = select(3, GetTalentTabInfo(2)) or 0
+            local t3 = select(3, GetTalentTabInfo(3)) or 0
+            return t1 .. "/" .. t2 .. "/" .. t3
         end
 
         -- other
@@ -350,20 +441,32 @@ function MySlot:Export(opt)
 
     msg.macro = {}
 
+    local numAccount, numCharacter = 0, 0
+    if GetNumMacros then
+        numAccount, numCharacter = GetNumMacros()
+    end
+
     if not opt.ignoreMacros["ACCOUNT"] then
-        for i = 1, MAX_ACCOUNT_MACROS  do
-            local m = self:GetMacroInfo(i)
-            if m then
-                msg.macro[#msg.macro + 1] = m
+        for i = 1, MAX_ACCOUNT_MACROS do
+            local name = GetMacroInfo(i)
+            if name then
+                local m = self:GetMacroInfo(i)
+                if m then
+                    msg.macro[#msg.macro + 1] = m
+                end
             end
         end
     end
 
     if not opt.ignoreMacros["CHARACTOR"] then
+        -- In 3.3.5a character macros start after account macros (usually at index 37)
         for i = MAX_ACCOUNT_MACROS + 1, MAX_ACCOUNT_MACROS + MAX_CHARACTER_MACROS do
-            local m = self:GetMacroInfo(i)
-            if m then
-                msg.macro[#msg.macro + 1] = m
+            local name = GetMacroInfo(i)
+            if name then
+                local m = self:GetMacroInfo(i)
+                if m then
+                    msg.macro[#msg.macro + 1] = m
+                end
             end
         end
     end
@@ -398,7 +501,7 @@ function MySlot:Export(opt)
     end
 
     msg.petslot = {}
-    if not opt.ignorePetActionBar and IsPetActive() then
+    if not opt.ignorePetActionBar and (PetHasActionBar and PetHasActionBar()) then
         for i = 1, NUM_PET_ACTION_SLOTS, 1 do
             local m = self:GetPetActionInfo(i)
             if m then
@@ -427,19 +530,19 @@ function MySlot:Export(opt)
     s = "# --------------------" .. MYSLOT_LINE_SEP .. s
     s = "# " .. L["Feedback"] .. "  farmer1992@gmail.com" .. MYSLOT_LINE_SEP .. s
     s = "# " .. MYSLOT_LINE_SEP .. s
-    s = "# " .. LEVEL .. ": " .. UnitLevel("player") .. MYSLOT_LINE_SEP .. s
+    s = "# " .. (LEVEL or "Level") .. ": " .. UnitLevel("player") .. MYSLOT_LINE_SEP .. s
     if talent then
-        s = "# " .. TALENTS .. ": " .. talent .. MYSLOT_LINE_SEP .. s
+        s = "# " .. (TALENTS or "Talents") .. ": " .. talent .. MYSLOT_LINE_SEP .. s
     end
-    if GetSpecialization then
+    if GetSpecialization and GetSpecializationInfo then
         s = "# " ..
-        SPECIALIZATION ..
+        (SPECIALIZATION or "Specialization") ..
         ": " ..
-        (GetSpecialization() and select(2, GetSpecializationInfo(GetSpecialization())) or NONE_CAPS) ..
+        (GetSpecialization() and select(2, GetSpecializationInfo(GetSpecialization())) or (NONE_CAPS or "None")) ..
         MYSLOT_LINE_SEP .. s
     end
-    s = "# " .. CLASS .. ": " .. UnitClass("player") .. MYSLOT_LINE_SEP .. s
-    s = "# " .. PLAYER .. ": " .. UnitName("player") .. MYSLOT_LINE_SEP .. s
+    s = "# " .. (CLASS or "Class") .. ": " .. UnitClass("player") .. MYSLOT_LINE_SEP .. s
+    s = "# " .. (PLAYER or "Player") .. ": " .. UnitName("player") .. MYSLOT_LINE_SEP .. s
     s = "# " .. L["Time"] .. ": " .. date() .. MYSLOT_LINE_SEP .. s
 
     if GetAddOnMetadata then
@@ -562,8 +665,8 @@ function MySlot:FindOrCreateMacro(macroInfo)
             perchar & testallow = 01 , 10 , 00
             perchar = testallow when not allow
         ]]
-        local testallow = bit.bor(numglobal < MAX_ACCOUNT_MACROS and 1 or 0, numperchar < MAX_CHARACTER_MACROS and 2 or 0)
-        perchar = bit.band(perchar, testallow)
+        local testallow = bit_bor(numglobal < MAX_ACCOUNT_MACROS and 1 or 0, numperchar < MAX_CHARACTER_MACROS and 2 or 0)
+        perchar = bit_band(perchar, testallow)
         perchar = perchar == 0 and testallow or perchar
 
         if perchar ~= 0 then
@@ -572,7 +675,21 @@ function MySlot:FindOrCreateMacro(macroInfo)
             if strsub(body, 0, 12) == '#showtooltip' then
                 icon = 'INV_Misc_QuestionMark'
             end
-            local newid = CreateMacro(name, icon, body, perchar >= 2)
+            local iconIndex = 1
+            if tonumber(icon) then
+                iconIndex = tonumber(icon)
+            else
+                local iconUpper = tostring(icon or "INV_Misc_QuestionMark"):upper()
+                for i = 1, GetNumMacroIcons() do
+                    local texture = GetMacroIconInfo(i)
+                    if texture and texture:upper():find(iconUpper, 1, true) then
+                        iconIndex = i
+                        break
+                    end
+                end
+            end
+
+            local newid = CreateMacro(name, iconIndex, body, perchar >= 2 and 1 or nil)
             if newid then
                 return newid
             end
@@ -655,8 +772,59 @@ function MySlot:RecoverData(msg, opt)
                 mounts[mountId] = i
             end
         end
+    elseif GetNumCompanions then
+        -- 3.3.5a fallback
+        for i = 1, GetNumCompanions("MOUNT") do
+             local _, _, spellId = GetCompanionInfo("MOUNT", i)
+             mounts[spellId] = i
+        end
     end
     -- }}}
+
+    -- {{{ cache critters
+    local critters = {}
+    if GetNumCompanions then
+        for i = 1, GetNumCompanions("CRITTER") do
+             local _, _, spellId = GetCompanionInfo("CRITTER", i)
+             critters[spellId] = i
+        end
+    end
+    -- }}}
+
+    -- {{{ cache spellbook for 3.3.5a
+    local spellbookMap = {}
+    if GetNumSpellTabs then
+        for tab = 1, GetNumSpellTabs() do
+            local _, _, offset, numSpells = GetSpellTabInfo(tab)
+            for i = 1, numSpells do
+                local index = offset + i
+                local link = GetSpellLink(index, "spell")
+                local spellId = link and tonumber(string.match(link, "spell:(%d+)"))
+                if spellId then
+                    spellbookMap[spellId] = index
+                end
+            end
+        end
+    end
+
+    local petbookMap = {}
+    if HasPetSpells and type(HasPetSpells) == "function" then
+        local numPetSpells = HasPetSpells()
+        if numPetSpells and numPetSpells > 0 then
+            for i = 1, numPetSpells do
+                local link = GetSpellLink(i, "pet")
+                local spellId = link and tonumber(string.match(link, "spell:(%d+)"))
+                if spellId then
+                    petbookMap[spellId] = i
+                end
+            end
+        end
+    end
+    -- }}}
+
+    if msg.name then
+        DEFAULT_CHAT_FRAME:AddMessage("|CFFFF0000<|r|CFFFFD100Myslot|r|CFFFF0000>|r" .. L["Importing profile from %s"]:format(msg.name))
+    end
 
     local slotBucket = {}
 
@@ -714,6 +882,10 @@ function MySlot:RecoverData(msg, opt)
             MySlot:Print(L["Ignore unknown macro [id=%s]"]:format(macroId))
         end
     end
+    -- Support for 3.3.5a UI Refresh
+    if _G.MacroFrame_Update and _G.MacroFrame and _G.MacroFrame:IsShown() then
+        _G.MacroFrame_Update()
+    end
     -- }}} Macro
 
 
@@ -735,12 +907,41 @@ function MySlot:RecoverData(msg, opt)
 
                 if curIndex ~= index or curType ~= slotType then
                     if slotType == MYSLOT_SPELL then
-                        PickupSpell(index)
+                        local picked = false
+                        if index > 0 then
+                            if spellbookMap[index] then
+                                PickupSpellBookItem(spellbookMap[index], "spell")
+                                picked = true
+                            elseif petbookMap[index] then
+                                PickupSpellBookItem(petbookMap[index], "pet")
+                                picked = true
+                            elseif mounts[index] then
+                                PickupCompanion("MOUNT", mounts[index])
+                                picked = true
+                            elseif critters[index] then
+                                PickupCompanion("CRITTER", critters[index])
+                                picked = true
+                            end
+                        end
+
+                        if not picked and not GetCursorInfo() and index > 0 then
+                            -- Fallback to name/direct ID only if map failed
+                            -- In 3.3.5a, PickupSpell(id) treats id as index. 
+                            -- If index > 10000, it's definitely a SpellID, so we get the name first.
+                            local spellName = GetSpellInfo(index)
+                            if spellName then
+                                PickupSpell(spellName)
+                            end
+                        end
 
                         -- try if override
                         if not GetCursorInfo() then
                             if spellOverride[index] then
-                                PickupSpell(spellOverride[index])
+                                if spellbookMap[spellOverride[index]] then
+                                    PickupSpellBookItem(spellbookMap[spellOverride[index]], "spell")
+                                else
+                                    PickupSpell(spellOverride[index])
+                                end
                             end
                         end
 
@@ -760,7 +961,15 @@ function MySlot:RecoverData(msg, opt)
                             end
                         end
 
-                        if not GetCursorInfo() then
+                        if not GetCursorInfo() and index ~= 0 then
+                            -- One last attempt by name for 3.3.5a
+                            local spellName = GetSpellInfo(index)
+                            if spellName then
+                                PickupSpell(spellName)
+                            end
+                        end
+
+                        if not GetCursorInfo() and index ~= 0 then
                             MySlot:Print(L["Ignore unlearned skill [id=%s], %s"]:format(index, GetSpellLink(index) or ""))
                         end
                     elseif slotType == MYSLOT_FLYOUT then
@@ -774,7 +983,15 @@ function MySlot:RecoverData(msg, opt)
                         end
 
                     elseif slotType == MYSLOT_COMPANION then
-                        PickupSpell(index)
+                        if GetNumCompanions and strindex then
+                            -- 3.3.5a
+                            local companionIndex = (strindex == "MOUNT") and mounts[index] or critters[index]
+                            if companionIndex then
+                                PickupCompanion(strindex, companionIndex)
+                            end
+                        else
+                            PickupSpell(index)
+                        end
 
                         if not GetCursorInfo() then
                             MySlot:Print(L["Ignore unattained companion [id=%s], %s"]:format(index, GetSpellLink(index) or ""))
@@ -786,25 +1003,33 @@ function MySlot:RecoverData(msg, opt)
                             MySlot:Print(L["Ignore missing item [id=%s]"]:format(index)) -- TODO add item link
                         end
                     elseif slotType == MYSLOT_SUMMONPET and strindex and strindex ~= curIndex then
-                        C_PetJournal.PickupPet(strindex, false)
-                        if not GetCursorInfo() then
-                            C_PetJournal.PickupPet(strindex, true)
+                        if C_PetJournal and C_PetJournal.PickupPet then
+                            C_PetJournal.PickupPet(strindex, false)
+                            if not GetCursorInfo() then
+                                C_PetJournal.PickupPet(strindex, true)
+                            end
                         end
                         if not GetCursorInfo() then
                             MySlot:Print(L["Ignore unattained pet [id=%s]"]:format(strindex))
                         end
                     elseif slotType == MYSLOT_SUMMONMOUNT then
                         index = mounts[index]
-                        if index then
+                        if index and C_MountJournal and C_MountJournal.Pickup then
                             C_MountJournal.Pickup(index)
-                        else
+                        elseif C_MountJournal and C_MountJournal.Pickup then
                             C_MountJournal.Pickup(0)
                             MySlot:Print(L["Use random mount instead of an unattained mount"])
+                        else
+                            MySlot:Print(L["Ignore unattained mount [id=%s]"]:format(index or 0))
                         end
                     elseif slotType == MYSLOT_EMPTY then
                         PickupAction(slotId)
                     elseif slotType == MYSLOT_EQUIPMENTSET then
-                        C_EquipmentSet.PickupEquipmentSet(index)
+                        if C_EquipmentSet and C_EquipmentSet.PickupEquipmentSet then
+                            C_EquipmentSet.PickupEquipmentSet(index)
+                        elseif _G.PickupEquipmentSet then
+                            _G.PickupEquipmentSet(index)
+                        end
                     end
 
                     if GetCursorInfo() then
@@ -844,9 +1069,10 @@ function MySlot:RecoverData(msg, opt)
 
                 if C_KeyBindings and C_KeyBindings.GetBindingContextForAction then
                      bindingContext = C_KeyBindings.GetBindingContextForAction(command)
+                     SetBinding(key, command, bindingContext)
+                else
+                     SetBinding(key, command)
                 end
-
-                SetBinding(key, command, bindingContext)
             end
 
             if b.key2 then
@@ -854,20 +1080,20 @@ function MySlot:RecoverData(msg, opt)
                 if key == "KEYCODE" then
                     key = b.key2.keycode
                 end
-                local key = (mod ~= "NONE" and (mod .. "-") or "") .. key
-                local bindingContext = 1
-
+                local fullKey = (mod ~= "NONE" and (mod .. "-") or "") .. key
                 if C_KeyBindings and C_KeyBindings.GetBindingContextForAction then
-                     bindingContext = C_KeyBindings.GetBindingContextForAction(command)
+                     local bindingContext = C_KeyBindings.GetBindingContextForAction(command)
+                     SetBinding(fullKey, command, bindingContext)
+                else
+                     SetBinding(fullKey, command)
                 end
-                SetBinding(key, command, bindingContext)
             end
         end
         SaveBindings(GetCurrentBindingSet())
     end
 
 
-    if not opt.actionOpt.ignorePetActionBar and IsPetActive() then
+    if not opt.actionOpt.ignorePetActionBar and (PetHasActionBar and PetHasActionBar()) then
         local pettoken = {}
         for i = 1, NUM_PET_ACTION_SLOTS, 1 do
             local name, _, isToken = GetPetActionInfo(i)
@@ -877,16 +1103,38 @@ function MySlot:RecoverData(msg, opt)
         end
 
         for _, p in pairs(msg.petslot or {}) do
+            local found = false
             if p.strindex then
                 local slot = pettoken[p.strindex]
                 if slot then
                     PickupPetAction(slot)
-                    PickupPetAction(p.id)
+                    found = true
+                elseif petbookMap then
+                    -- Search in pet spellbook by name if ID/Token fails
+                    for id, index in pairs(petbookMap) do
+                        local name = GetSpellLink(index, "pet")
+                        name = name and string.match(name, "%[(.+)%]")
+                        if name == p.strindex then
+                            PickupPetSpell(index)
+                            found = true
+                            break
+                        end
+                    end
                 end
-            elseif p.index then
-                PickupPetSpell(p.index)
-                PickupPetAction(p.id)
+            elseif p.index and p.index ~= 0 then
+                if petbookMap and petbookMap[p.index] then
+                    PickupPetSpell(petbookMap[p.index])
+                    found = true
+                else
+                    PickupPetSpell(p.index)
+                    found = GetCursorInfo() == "spell"
+                end
             elseif p.type == MYSLOT_EMPTY then
+                PickupPetAction(p.id)
+                found = true
+            end
+
+            if found then
                 PickupPetAction(p.id)
             end
             ClearCursor()
@@ -919,16 +1167,21 @@ function MySlot:Clear(what, opt)
         end
     elseif what == "BINDING" then
         for i = 1, GetNumBindings() do
-            local action, _, key1, key2 = GetBinding(i)
+            local action, key1, key2
+            if C_KeyBindings then
+                action, _, key1, key2 = GetBinding(i)
+            else
+                action, key1, key2 = GetBinding(i)
+            end
 
             for _, key in pairs({ key1, key2 }) do
                 if key then
-                    local bindingContext = 1
-
                     if C_KeyBindings and C_KeyBindings.GetBindingContextForAction then
-                        bindingContext = C_KeyBindings.GetBindingContextForAction(action)
+                        local bindingContext = C_KeyBindings.GetBindingContextForAction(action)
+                        SetBinding(key, nil, bindingContext)
+                    else
+                        SetBinding(key, nil)
                     end
-                    SetBinding(key, nil, bindingContext)
                 end
             end
         end

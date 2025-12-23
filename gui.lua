@@ -5,6 +5,12 @@ local RegEvent = MySlot.regevent
 local MAX_PROFILES_COUNT = 100
 local IMPORT_BACKUP_COUNT = 1
 
+local tAppendAll = _G.tAppendAll or function (target, source)
+    for _, v in ipairs(source) do
+        table.insert(target, v)
+    end
+end
+
 
 local f = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
 f:SetWidth(650)
@@ -35,7 +41,7 @@ f:Hide()
 
 MySlot.MainFrame = f
 
-local menuFrame = CreateFrame("Frame", nil, UIParent, "UIDropDownMenuTemplate")
+local menuFrame = CreateFrame("Frame", "MyslotMenuFrame", UIParent, "UIDropDownMenuTemplate")
 
 -- title
 do
@@ -63,7 +69,12 @@ do
     b:SetPoint("BOTTOMRIGHT", -145, 15)
     b:SetText(OPTIONS)
     b:SetScript("OnClick", function()
-        Settings.OpenToCategory(MySlot.settingcategory.ID)
+        if Settings and Settings.OpenToCategory then
+            Settings.OpenToCategory(MySlot.settingcategory.ID)
+        else
+            -- 3.3.5a / legacy
+            InterfaceOptionsFrame_OpenToCategory(MySlot.settingcategory)
+        end
     end)
 end
 
@@ -174,7 +185,7 @@ local function CreateSettingMenu(opt)
             func = childclicked,
         },
         {
-            text = OPTION_SHOW_ACTION_BAR:format(2), -- MultiBarBottomLeft
+            text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(2), -- MultiBarBottomLeft
             isNotRadio = true,
             keepShownOnClick = true,
             arg1 = "action",
@@ -183,7 +194,7 @@ local function CreateSettingMenu(opt)
             func = childclicked,
         },
         {
-            text = OPTION_SHOW_ACTION_BAR:format(3), -- MultiBarBottomRight
+            text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(3), -- MultiBarBottomRight
             isNotRadio = true,
             keepShownOnClick = true,
             arg1 = "action",
@@ -192,7 +203,7 @@ local function CreateSettingMenu(opt)
             func = childclicked,
         },
         {
-            text = OPTION_SHOW_ACTION_BAR:format(4), -- MultiBarRight
+            text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(4), -- MultiBarRight
             isNotRadio = true,
             keepShownOnClick = true,
             arg1 = "action",
@@ -201,7 +212,7 @@ local function CreateSettingMenu(opt)
             func = childclicked,
         },
         {
-            text = OPTION_SHOW_ACTION_BAR:format(5), -- MultiBarLeft
+            text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(5), -- MultiBarLeft
             isNotRadio = true,
             keepShownOnClick = true,
             arg1 = "action",
@@ -214,7 +225,7 @@ local function CreateSettingMenu(opt)
     if MULTIBAR_5_ACTIONBAR_PAGE then
 
         table.insert(actionbarlist, {
-            text = OPTION_SHOW_ACTION_BAR:format(6),
+            text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(6),
             isNotRadio = true,
             keepShownOnClick = true,
             arg1 = "action",
@@ -226,7 +237,7 @@ local function CreateSettingMenu(opt)
 
     if MULTIBAR_6_ACTIONBAR_PAGE then
         table.insert(actionbarlist, {
-            text = OPTION_SHOW_ACTION_BAR:format(7),
+            text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(7),
             isNotRadio = true,
             keepShownOnClick = true,
             arg1 = "action",
@@ -238,7 +249,7 @@ local function CreateSettingMenu(opt)
 
     if  MULTIBAR_7_ACTIONBAR_PAGE then
         table.insert(actionbarlist, {
-            text = OPTION_SHOW_ACTION_BAR:format(8),
+            text = (OPTION_SHOW_ACTION_BAR or (L["ActionBar"] .. " %d")):format(8),
             isNotRadio = true,
             keepShownOnClick = true,
             arg1 = "action",
@@ -423,8 +434,8 @@ do
             end
 
             MySlot:Clear("MACRO", clearOpt.ignoreMacros)
-            MySlot:Clear("ACTION", clearOpt.ignoreActionBars)
-            if clearOpt.ignoreBinding then
+            -- MySlot:Clear("ACTION", clearOpt.ignoreActionBars)
+            if not clearOpt.ignoreBinding then
                 MySlot:Clear("BINDING")
             end
 
@@ -445,7 +456,8 @@ do
         local icon = ba:CreateTexture(nil, 'ARTWORK')
         icon:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
         icon:SetPoint('CENTER', 1, 0)
-        icon:SetSize(16, 16)
+        icon:SetWidth(16)
+        icon:SetHeight(16)
     end
 
     local settings = {
@@ -529,7 +541,8 @@ do
         local icon = ba:CreateTexture(nil, 'ARTWORK')
         icon:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
         icon:SetPoint('CENTER', 1, 0)
-        icon:SetSize(16, 16)
+        icon:SetWidth(16)
+        icon:SetHeight(16)
     end
 
     local settings = {
@@ -549,7 +562,7 @@ end
 
 RegEvent("ADDON_LOADED", function()
     do
-        local t = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
+        local t = CreateFrame("Frame", "MyslotExportScrollBackground", f, BackdropTemplateMixin and "BackdropTemplate" or nil)
         t:SetWidth(600)
         t:SetHeight(455)
         t:SetPoint("TOPLEFT", f, 25, -75)
@@ -564,7 +577,7 @@ RegEvent("ADDON_LOADED", function()
         })
         t:SetBackdropColor(0, 0, 0, 0)
 
-        local s = CreateFrame("ScrollFrame", nil, t, "UIPanelScrollFrameTemplate")
+        local s = CreateFrame("ScrollFrame", "MyslotExportScrollFrame", t, "UIPanelScrollFrameTemplate")
         s:SetWidth(560)
         s:SetHeight(440)
         s:SetPoint("TOPLEFT", 10, -10)
@@ -572,6 +585,7 @@ RegEvent("ADDON_LOADED", function()
 
         local edit = CreateFrame("EditBox", nil, s)
         s.cursorOffset = 0
+        edit.cursorOffset = 0 -- 3.3.5a compat
         edit:SetWidth(550)
         s:SetScrollChild(edit)
         edit:SetAutoFocus(false)
@@ -604,7 +618,7 @@ RegEvent("ADDON_LOADED", function()
 
 
     do
-        local t = CreateFrame("Frame", nil, f, "UIDropDownMenuTemplate")
+        local t = CreateFrame("Frame", "MyslotExportDropDown", f, "UIDropDownMenuTemplate")
         t:SetPoint("TOPLEFT", f, 5, -45)
         UIDropDownMenu_SetWidth(t, 200)
         do
@@ -612,7 +626,7 @@ RegEvent("ADDON_LOADED", function()
             tt:SetPoint("BOTTOMLEFT", t, "TOPLEFT", 20, 0)
 
             tt.ShowUnsaved = function()
-                tt:SetText(YELLOW_FONT_COLOR:WrapTextInColorCode(L["Unsaved"]))
+                tt:SetText("|cffffff00" .. L["Unsaved"] .. "|r")
             end
 
             infolabel = tt
@@ -816,7 +830,11 @@ RegEvent("ADDON_LOADED", function()
     icon:Register("Myslot", ldb:NewDataObject("Myslot", {
             icon = "Interface\\MacroFrame\\MacroFrame-Icon",
             OnClick = function()
-                f:SetShown(not f:IsShown())
+                if f:IsShown() then
+                    f:Hide()
+                else
+                    f:Show()
+                end
             end,
             OnTooltipShow = function(tooltip)
                 tooltip:AddLine(L["Myslot"])
