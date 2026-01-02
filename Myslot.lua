@@ -765,7 +765,7 @@ function MySlot:RecoverData(msg, opt)
 
     -- {{{ cache mounts
     local mounts = {}
-    if C_MountJournal then
+    if C_MountJournal and C_MountJournal.GetNumMounts then
         for i = 1, C_MountJournal.GetNumMounts() do
             local _, _, _, _, _, _, _, _, _, _, isCollected, mountId = C_MountJournal.GetDisplayedMountInfo(i)
             if isCollected then
